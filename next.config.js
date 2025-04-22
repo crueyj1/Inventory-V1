@@ -2,10 +2,8 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
-  // Disable server components for this version
-  experimental: {
-    appDir: true,
-  }
+  // The app directory is now stable in Next.js 14
+  // Remove the experimental flag
 };
 
 module.exports = nextConfig;
