@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "../../lib/supabase";
 
 export interface InventoryItem {
@@ -21,6 +21,8 @@ export function useInventory(source: "global" | "internal") {
   const [gpuFilter, setGpuFilter] = useState<string>("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editedItem, setEditedItem] = useState<Partial<InventoryItem>>({});
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   const [newItem, setNewItem] = useState<Omit<InventoryItem, "id">>({
     gpu: "",
     status: "",
@@ -31,73 +33,115 @@ export function useInventory(source: "global" | "internal") {
   // Fetch inventory data
   useEffect(() => {
     const fetchInventory = async () => {
-      const { data, error } = await supabase
-        .from(`${source}_inventory`)
-        .select("*");
+      setLoading(true);
+      try {
+        const { data, error: fetchError } = await supabase
+          .from(`${source}_inventory`)
+          .select("*")
+          .order('gpu', { ascending: true });
 
-      if (error) console.error("Error loading inventory:", error);
-      else setItems(data as InventoryItem[]);
+        if (fetchError) throw fetchError;
+        setItems(data as InventoryItem[]);
+        setError(null);
+      } catch (err) {
+        console.error("Error loading inventory:", err);
+        setError("Failed to load inventory data");
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchInventory();
   }, [source]);
 
-  // Filter items based on GPU filter
-  const filteredItems = items.filter((item) =>
-    item.gpu.toLowerCase().includes(gpuFilter.toLowerCase())
+  // Filter items based on GPU filter with memoization
+  const filteredItems = useMemo(() => 
+    items.filter((item) =>
+      item.gpu.toLowerCase().includes(gpuFilter.toLowerCase())
+    ),
+    [items, gpuFilter]
   );
 
-  // Calculate stats
-  const stats: InventoryStats = {
+  // Calculate stats with memoization
+  const stats: InventoryStats = useMemo(() => ({
     total: filteredItems.length,
     billed: filteredItems.filter((i) => i.status === "billed").length,
     notBilled: filteredItems.filter((i) => i.status === "not billed").length,
     consumed: filteredItems.filter((i) => i.status === "consumed").length,
-  };
+  }), [filteredItems]);
 
   // Handle editing an item
-  const handleEdit = (item: InventoryItem) => {
+  const handleEdit = useCallback((item: InventoryItem) => {
     setEditingId(item.id);
     setEditedItem(item);
-  };
+  }, []);
 
   // Save edited item
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (!editedItem.id) return;
     
-    const { error } = await supabase
-      .from(`${source}_inventory`)
-      .update(editedItem)
-      .eq("id", editedItem.id);
+    try {
+      const { error: updateError } = await supabase
+        .from(`${source}_inventory`)
+        .update(editedItem)
+        .eq("id", editedItem.id);
+        
+      if (updateError) throw updateError;
       
-    if (!error) {
       setItems((prev) =>
         prev.map((item) => (item.id === editedItem.id ? { ...item, ...editedItem } : item))
       );
       setEditingId(null);
       setEditedItem({});
+      setError(null);
+    } catch (err) {
+      console.error("Error updating item:", err);
+      setError("Failed to update item");
     }
-  };
+  }, [editedItem, source]);
 
   // Delete an item
-  const handleDelete = async (id: string) => {
-    const { error } = await supabase.from(`${source}_inventory`).delete().eq("id", id);
-    if (!error) setItems((prev) => prev.filter((item) => item.id !== id));
-  };
+  const handleDelete = useCallback(async (id: string) => {
+    if (!confirm("Are you sure you want to delete this item?")) return;
+    
+    try {
+      const { error: deleteError } = await supabase
+        .from(`${source}_inventory`)
+        .delete()
+        .eq("id", id);
+      
+      if (deleteError) throw deleteError;
+      
+      setItems((prev) => prev.filter((item) => item.id !== id));
+      setError(null);
+    } catch (err) {
+      console.error("Error deleting item:", err);
+      setError("Failed to delete item");
+    }
+  }, [source]);
 
   // Add a new item
-  const handleAdd = async (newItemData: Omit<InventoryItem, "id">) => {
-    const { data, error } = await supabase
-      .from(`${source}_inventory`)
-      .insert([newItemData])
-      .select();
+  const handleAdd = useCallback(async (newItemData: Omit<InventoryItem, "id">) => {
+    try {
+      const { data, error: addError } = await supabase
+        .from(`${source}_inventory`)
+        .insert([newItemData])
+        .select();
+        
+      if (addError) throw addError;
       
-    if (!error && data?.length) {
-      setItems((prev) => [...prev, data[0]]);
-      return true;
+      if (data?.length) {
+        setItems((prev) => [...prev, data[0]]);
+        setError(null);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error("Error adding item:", err);
+      setError("Failed to add item");
+      return false;
     }
-    return false;
-  };
+  }, [source]);
 
   return {
     items,
@@ -114,5 +158,7 @@ export function useInventory(source: "global" | "internal") {
     handleSave,
     handleDelete,
     handleAdd,
+    loading,
+    error,
   };
 }

@@ -1,52 +1,107 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../lib/supabase";
 
 export function useAuth() {
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+  const checkAuth = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError) throw userError;
+      
       if (user) {
         setUserEmail(user.email);
-        const { data, error } = await supabase
+        
+        const { data, error: roleError } = await supabase
           .from("users")
           .select("role")
           .eq("email", user.email)
           .single();
         
-        if (!error && data?.role === "admin") {
+        if (roleError) throw roleError;
+        
+        if (data?.role === "admin") {
           setIsAdmin(true);
         }
       }
-    };
-
-    checkAuth();
+      setError(null);
+    } catch (err) {
+      console.error("Auth check failed:", err);
+      setError("Authentication check failed");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const handleSignIn = async () => {
-    const email = prompt("Enter your email") ?? "";
-    const password = prompt("Enter your password") ?? "";
+  useEffect(() => {
+    checkAuth();
     
-    const { error } = await supabase.auth.signInWithPassword({ 
-      email, 
-      password 
+    // Set up auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      checkAuth();
     });
     
-    if (error) alert("Login failed");
-    else location.reload();
-  };
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [checkAuth]);
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    location.reload();
-  };
+  const handleSignIn = useCallback(async () => {
+    try {
+      const email = prompt("Enter your email");
+      if (!email) return;
+      
+      const password = prompt("Enter your password");
+      if (!password) return;
+      
+      setLoading(true);
+      
+      const { error: signInError } = await supabase.auth.signInWithPassword({ 
+        email, 
+        password 
+      });
+      
+      if (signInError) throw signInError;
+      
+      setError(null);
+    } catch (err) {
+      console.error("Login failed:", err);
+      alert("Login failed: " + (err as Error).message);
+      setError("Login failed");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const handleSignOut = useCallback(async () => {
+    try {
+      setLoading(true);
+      const { error: signOutError } = await supabase.auth.signOut();
+      
+      if (signOutError) throw signOutError;
+      
+      setUserEmail(null);
+      setIsAdmin(false);
+      setError(null);
+    } catch (err) {
+      console.error("Logout failed:", err);
+      setError("Logout failed");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   return {
     isAdmin,
     userEmail,
     handleSignIn,
-    handleSignOut
+    handleSignOut,
+    loading,
+    error
   };
 }

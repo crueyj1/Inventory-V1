@@ -26,6 +26,8 @@ export function InventoryTab({ source }: InventoryTabProps) {
     editingId,
     editedItem,
     setEditedItem,
+    loading,
+    error
   } = useInventory(source);
 
   const { userEmail, isAdmin, handleSignIn, handleSignOut } = useAuth();
@@ -60,6 +62,8 @@ export function InventoryTab({ source }: InventoryTabProps) {
         handleSave={handleSave}
         handleDelete={handleDelete}
         renderAddForm={() => isAdmin && userEmail && <AddInventoryForm onAdd={handleAdd} />}
+        loading={loading}
+        error={error}
       />
     </div>
   );
