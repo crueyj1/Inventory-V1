@@ -51,19 +51,26 @@ export function useAuth() {
     };
   }, [checkAuth]);
 
-  const handleSignIn = useCallback(async () => {
+  const handleSignIn = useCallback(async (email?: string, password?: string) => {
     try {
-      const email = prompt("Enter your email");
-      if (!email) return;
+      let userEmail = email;
+      let userPassword = password;
       
-      const password = prompt("Enter your password");
-      if (!password) return;
+      if (!userEmail) {
+        userEmail = prompt("Enter your email") ?? undefined;
+      }
+      if (!userEmail) return;
+      
+      if (!userPassword) {
+        userPassword = prompt("Enter your password") ?? undefined;
+      }
+      if (!userPassword) return;
       
       setLoading(true);
       
       const { error: signInError } = await supabase.auth.signInWithPassword({ 
-        email, 
-        password 
+        email: userEmail, 
+        password: userPassword 
       });
       
       if (signInError) throw signInError;
@@ -71,8 +78,8 @@ export function useAuth() {
       setError(null);
     } catch (err) {
       console.error("Login failed:", err);
-      alert("Login failed: " + (err as Error).message);
       setError("Login failed");
+      throw err;
     } finally {
       setLoading(false);
     }

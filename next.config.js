@@ -2,8 +2,11 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
-  // The app directory is now stable in Next.js 14
-  // Remove the experimental flag
+  images: {
+    domains: ['jqqetydqvndhjcnefjic.supabase.co'], // Add if you use Supabase storage
+  },
+  poweredByHeader: false,
+  compress: true,
 };
 
 module.exports = nextConfig;
