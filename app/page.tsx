@@ -1,10 +1,10 @@
 "use client";
 
 import React from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
-import { InventoryTab } from "../components/inventory-tab";
-import { AppHeader } from "../components/layout/app-header";
-import { ErrorBoundary } from "../components/error-boundary";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { InventoryTab } from "./components/inventory-tab";
+import { AppHeader } from "./components/layout/app-header";
+import { ErrorBoundary } from "./components/error-boundary";
 
 export default function HomePage() {
   return (

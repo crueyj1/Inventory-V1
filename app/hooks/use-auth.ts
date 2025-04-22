@@ -15,7 +15,7 @@ export function useAuth() {
       if (userError) throw userError;
       
       if (user) {
-        setUserEmail(user.email);
+        setUserEmail(user.email ?? null);
         
         const { data, error: roleError } = await supabase
           .from("users")
